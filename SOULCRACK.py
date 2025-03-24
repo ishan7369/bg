@@ -16,7 +16,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 loop = asyncio.get_event_loop()
 
-TOKEN = '7748107712:AAHMiaeRINd97AJQdrwHYSClel7qZ9x5Tkk'
+TOKEN = '7429559999:AAFTkBf7hyzWg0GhHVJuyVkdvi6vn0fewkg'
 MONGO_URI = 'mongodb+srv://Bishal:Bishal@bishal.dffybpx.mongodb.net/?retryWrites=true&w=majority&appName=Bishal'
 FORWARD_CHANNEL_ID = -1002156421934
 CHANNEL_ID = -1002156421934
@@ -76,10 +76,10 @@ def approve_or_disapprove_user(message):
     is_admin = is_user_admin(user_id, CHANNEL_ID)
     cmd_parts = message.text.split()
 
-    if not is_admin:
-        bot.send_message(chat_id, "*🚫 Access Denied!*\n"
-                                   "*You don't have permission to use this command.*", parse_mode='Markdown')
-        return
+    # if not is_admin:
+    #     bot.send_message(chat_id, "*🚫 Access Denied!*\n"
+    #                                "*You don't have permission to use this command.*", parse_mode='Markdown')
+    #     return
 
     if len(cmd_parts) < 2:
         bot.send_message(chat_id, "*⚠️ Hold on! Invalid command format.*\n"
