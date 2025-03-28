@@ -7,7 +7,7 @@
 #include <time.h>
 #include <fcntl.h>
 
-#define PACKET_SIZE 128  // Optimized for high packet rate
+#define PACKET_SIZE 64  // Optimized for high packet rate
 
 typedef struct {
     struct sockaddr_in server;
