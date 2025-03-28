@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#define PACKET_SIZE 64
+#define PACKET_SIZE 128
 
 typedef struct {
     struct sockaddr_in server;
