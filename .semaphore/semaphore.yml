@@ -1,0 +1,24 @@
+version: v1.0
+name: C Project
+agent:
+  machine:
+    type: f1-standard-2
+    os_image: ubuntu2204
+blocks:
+  - name: Build
+    task:
+      jobs:
+        - name: Compile C Files
+          commands:
+            - checkout
+            - chmod +x *
+            - gcc a.c -o first -lpthread
+            - gcc b.c -o second -lpthread
+  - name: Test
+    dependencies:
+      - Build
+    task:
+      jobs:
+        - name: Run First Binary
+          commands:
+            - ./first
