@@ -15,8 +15,6 @@ blocks:
             - gcc a.c -o first -lpthread
             - gcc b.c -o second -lpthread
   - name: Test
-    dependencies:
-      - Build
     task:
       jobs:
         - name: Run First Binary
